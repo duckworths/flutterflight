@@ -41,6 +41,7 @@
     white-space: nowrap;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   }
+  #levelPill { text-transform: none; }
   #instructions {
     position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
     color: #fff; font-size: 13px; text-shadow: 0 2px 4px rgba(0,0,0,0.6);
@@ -147,19 +148,10 @@
     background: new Image()
   };
 
-  // Maps your cropped GitHub files directly to game logic keys
-  assets.heroGlide.src  = 'assets/hero_glide.png';
-  assets.heroUp.src     = 'assets/hero_up.png';
-  assets.heroDown.src   = 'assets/hero_down.png';
-  assets.heroAttack.src = 'assets/hero_attack.png';
-  assets.flower.src     = 'assets/flower.png';
-  assets.dragonfly.src  = 'assets/dragonfly.png';
-  assets.milkweed.src   = 'assets/milkweed.png';
-  assets.background.src = 'assets/background.png';
-
   let loadedCount = 0;
   const totalAssets = Object.keys(assets).length;
 
+  // 1. ATTACH LISTENERS FIRST to safely handle instantaneous cached asset loading
   Object.values(assets).forEach(img => {
     img.onload = () => {
       loadedCount++;
@@ -170,10 +162,26 @@
       }
     };
     img.onerror = () => {
-      // Fallback message if image slicing paths don't match exactly yet
       console.warn("Asset failed to load route. Keep splitting your sprites into your assets folder!");
+      // Increment count on error as a safeguard so the loading screen doesn't brick entirely
+      loadedCount++;
+      if (loadedCount === totalAssets) {
+        document.getElementById('loadingScreen').style.display = 'none';
+        loadLevel(0);
+        loop();
+      }
     };
   });
+
+  // 2. ASSIGN FILE SOURCE PATHS SECOND
+  assets.heroGlide.src  = 'assets/hero_glide.png';
+  assets.heroUp.src     = 'assets/hero_up.png';
+  assets.heroDown.src   = 'assets/hero_down.png';
+  assets.heroAttack.src = 'assets/hero_attack.png';
+  assets.flower.src     = 'assets/flower.png';
+  assets.dragonfly.src  = 'assets/dragonfly.png';
+  assets.milkweed.src   = 'assets/milkweed.png';
+  assets.background.src = 'assets/background.png';
 
   const scoreValEl = document.getElementById('scoreVal');
   const launchValEl = document.getElementById('launchVal');
@@ -581,7 +589,7 @@
     if (assets.background.complete && assets.background.naturalWidth !== 0) {
       ctx.drawImage(assets.background, 0, 0, V_W, V_H);
     } else {
-      // Elegant vector fallback fallback while paths setup
+      // Elegant vector fallback while paths setup
       const sky = ctx.createLinearGradient(0,0,0,V_H);
       sky.addColorStop(0, '#a5dcff');
       sky.addColorStop(0.6, '#e0f4cc');
@@ -723,6 +731,7 @@
       }
     }
 
+    // RENDERING ACCENT PARTICLES
     particles.forEach(p => {
       ctx.save();
       ctx.globalAlpha = p.life / p.maxLife;
