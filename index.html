@@ -28,6 +28,7 @@
     display: flex; justify-content: space-between; align-items: flex-start;
     pointer-events: none;
     font-weight: 700; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    z-index: 5;
   }
   #hud .pillRow { display: flex; gap: 10px; flex-wrap: wrap; }
   #hud .pill {
@@ -48,29 +49,48 @@
     border: 1px solid rgba(255,255,255,0.1);
     pointer-events: none; text-align: center; max-width: 85%;
     backdrop-filter: blur(5px);
+    z-index: 5;
   }
-#overlay h1, #introOverlay h1 { 
-  font-size: 26px; /* Reduced from 32px */
-  margin: 0 0 4px; 
-}
-#stars { 
-  font-size: 32px; /* Reduced from 42px */
-  margin: 6px 0; 
-}
-.factCard {
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 16px;
-  padding: 10px 16px; /* Thinner padding */
-  margin: 10px 0; /* Tighter margins */
-  max-width: 480px;
-}
+  
+  /* Binds modals explicitly to the canvas area and enables clean mobile scrolling */
+  #overlay, #introOverlay {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%; height: 100%;
+    max-width: 900px; max-height: 500px;
+    background: rgba(8, 18, 8, 0.92);
+    display: none; align-items: center; justify-content: center; flex-direction: column;
+    color: #fff; text-align: center; padding: 24px; z-index: 10;
+    backdrop-filter: blur(4px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #overlay.show, #introOverlay.show { display: flex; }
+  
+  #overlay h1, #introOverlay h1 { 
+    font-size: 26px; 
+    margin: 0 0 4px; 
+    color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  }
+  #overlay p, #introOverlay p { font-size: 14px; margin: 6px 0; opacity: 0.9; max-width: 440px; line-height: 1.4; }
+  #stars { font-size: 32px; margin: 6px 0; letter-spacing: 8px; filter: drop-shadow(0 2px 8px rgba(255,217,122,0.4)); }
+  
+  .factCard {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 16px;
+    padding: 10px 16px; 
+    margin: 10px 0; 
+    max-width: 440px;
+    box-shadow: inset 0 0 20px rgba(255,255,255,0.05);
+  }
   .factCard .label {
     font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
     color: #ffd97a; font-weight: 800; margin-bottom: 6px;
   }
   button.gamebtn {
-    margin-top: 20px; padding: 14px 36px; font-size: 16px; font-weight: 700;
+    margin-top: 14px; padding: 12px 32px; font-size: 16px; font-weight: 700;
     border: none; border-radius: 30px; cursor: pointer;
     background: linear-gradient(135deg, #ff9233, #ff5252);
     color: #fff; box-shadow: 0 6px 20px rgba(255,107,107,0.4);
@@ -84,7 +104,6 @@
     color: #fff; font-weight: bold; font-size: 18px; z-index: 100;
   }
 
-  /* Responsive screen turning prompt for portrait mobile viewports */
   @media screen and (orientation: portrait) {
     #gameContainer::after {
       content: "Please rotate your device to landscape mode 🔄";
@@ -155,7 +174,6 @@
   let loadedCount = 0;
   const totalAssets = Object.keys(assets).length;
 
-  // 1. ATTACH LISTENERS FIRST to safely handle instantaneous cached asset loading
   Object.values(assets).forEach(img => {
     img.onload = () => {
       loadedCount++;
@@ -176,7 +194,6 @@
     };
   });
 
-  // 2. ASSIGN FILE SOURCE PATHS SECOND
   assets.heroGlide.src  = 'assets/hero_glide.png';
   assets.heroUp.src     = 'assets/hero_up.png';
   assets.heroDown.src   = 'assets/hero_down.png';
@@ -219,6 +236,7 @@
   ];
   function randomFact(){ return FACTS[Math.floor(Math.random()*FACTS.length)]; }
 
+  // Fixed dimensional scaling to perfect squares for your 512x512 plant targets
   const LEVELS = [
     {
       name: "First Flight",
@@ -241,7 +259,7 @@
       goal: "The milkweed patch is narrower now, and a strong downdraft will test your gliding.",
       startX: 120, startY: 300,
       maxLaunches: 3,
-      milkweed: { x: 725, y: 335, w: 140, h: 50 },
+      milkweed: { x: 725, y: 335, w: 90, h: 90 },
       flowers: [
         {x: 240, y: 240, r: 24, collected:false},
         {x: 370, y: 190, r: 24, collected:false},
@@ -282,7 +300,6 @@
   const MAX_FLAPS = 3;
   const MAX_CURL = 0.06;
 
-  // REWRITTEN RESIZE FUNCTION: Letterboxes display safely without stretching sprites
   function resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -306,9 +323,17 @@
     scaleX = canvasW / V_W;
     scaleY = canvasH / V_H;
 
-    // Mobile specific optimization: enforces crisp rendering lines
     ctx.imageSmoothingEnabled = false;
-    ctx.imageSmoothingEnabled = false;
+
+    // Resizes active text panels smoothly inside the viewport bounds
+    const introOver = document.getElementById('introOverlay');
+    const winOver = document.getElementById('overlay');
+    if(introOver && winOver) {
+      introOver.style.width = canvasW + "px";
+      introOver.style.height = canvasH + "px";
+      winOver.style.width = canvasW + "px";
+      winOver.style.height = canvasH + "px";
+    }
   }
   window.addEventListener('resize', resize);
   resize();
@@ -538,7 +563,8 @@
       }
     });
 
-    if (butterfly.y >= level.groundY - 10) {
+    // Landing threshold tracks the milkweed container base zone directly
+    if (butterfly.y >= level.milkweed.y - 10) {
       if (insideMilkweedX(butterfly.x, level.milkweed)) {
         const speed = Math.hypot(butterfly.vx, butterfly.vy);
         if (speed < 14.5) {
@@ -546,13 +572,9 @@
         } else {
           failAttempt('ground');
         }
-      } else {
+      } else if (butterfly.y >= level.groundY - 10) {
         failAttempt('ground');
       }
-    }
-
-    if (butterfly.x < -40 || butterfly.x > V_W + 40 || butterfly.y > V_H + 60) {
-      failAttempt('lost');
     }
   }
 
@@ -612,7 +634,6 @@
     }
     ctx.scale(scaleX, scaleY);
 
-    // DRAW ENVIRONMENT BACKGROUND IMAGE
     if (assets.background.complete && assets.background.naturalWidth !== 0) {
       ctx.drawImage(assets.background, 0, 0, V_W, V_H);
     } else {
@@ -624,7 +645,6 @@
       ctx.fillRect(0,0,V_W,V_H);
     }
 
-    // DRAW ACCENT CLOUDS IF NO BACKGROUND
     if (!assets.background.complete) {
       ctx.fillStyle = 'rgba(255,255,255,0.55)';
       [[120,60,50],[340,45,65],[670,80,55]].forEach(([x,y,r])=>{
@@ -664,7 +684,6 @@
       ctx.restore();
     });
 
-    // DRAW THE CARTOON FLOWER SPRITES
     level.flowers.forEach(f => {
       if (f.collected) return;
       ctx.save();
@@ -677,34 +696,30 @@
       ctx.restore();
     });
 
-    // DRAW GLOWING CARTOON MILKWEED GOAL
     const m = level.milkweed;
     ctx.save();
     ctx.fillStyle = 'rgba(255, 243, 128, 0.15)';
     ctx.strokeStyle = '#ffb300';
     ctx.lineWidth = 2;
-    ctx.fillRect(m.x, m.y - 15, m.w, m.h);
-    ctx.strokeRect(m.x, m.y - 15, m.w, m.h);
+    ctx.fillRect(m.x, m.y, m.w, m.h);
+    ctx.strokeRect(m.x, m.y, m.w, m.h);
 
     ctx.fillStyle = '#0f330f';
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText("✨ TARGET AREA ✨", m.x + m.w/2, m.y - 24);
+    ctx.fillText("✨ TARGET AREA ✨", m.x + m.w/2, m.y - 12);
 
     if (assets.milkweed.complete && assets.milkweed.naturalWidth !== 0) {
-      ctx.drawImage(assets.milkweed, m.x, m.y - 10, m.w, m.h + 10);
+      ctx.drawImage(assets.milkweed, m.x, m.y, m.w, m.h);
     } else {
       ctx.font = '28px serif';
       const count = Math.max(3, Math.round(m.w/32));
       for (let i=0; i<count; i++){
-        ctx.fillText('🌾', m.x + (i+0.5)*(m.w/count), m.y + 16);
+        ctx.fillText('🌾', m.x + (i+0.5)*(m.w/count), m.y + (m.h/2));
       }
     }
     ctx.restore();
 
-    // REMOVED HARSH VECTOR OVERLAY TRANGLE DRAW LOOPS TO PRESERVE NATURAL SCENERY FLUIDITY
-
-    // DRAW THE ENEMY DRAGONFLIES SPRITES
     level.dragonflies.forEach(d => {
       ctx.save();
       ctx.translate(d.x, d.y);
