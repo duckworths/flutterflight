@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Flutter Flight - Animated Edition</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #112211;
+    touch-action: none;
+    user-select: none;
+  }
+  #gameContainer {
+    position: relative;
+    width: 100vw; height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at center, #1e3a1e 0%, #0d1a0d 100%);
+  }
+  canvas {
+    display: block;
+    width: 100%; height: 100%;
+    cursor: crosshair;
+  }
+  #hud {
+    position: absolute; top: 16px; left: 16px; right: 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none;
+    font-weight: 700; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
+  #hud .pillRow { display: flex; gap: 10px; flex-wrap: wrap; }
+  #hud .pill {
+    background: rgba(15, 35, 15, 0.8);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 24px;
+    padding: 8px 16px;
+    font-size: 14px;
+    backdrop-filter: blur(8px);
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  #instructions {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 13px; text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+    background: rgba(15, 35, 15, 0.75); padding: 8px 18px; border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    pointer-events: none; text-align: center; max-width: 85%;
+    backdrop-filter: blur(5px);
+  }
+  #overlay, #introOverlay {
+    position: absolute; inset: 0;
+    background: rgba(8, 18, 8, 0.88);
+    display: none; align-items: center; justify-content: center; flex-direction: column;
+    color: #fff; text-align: center; padding: 24px; z-index: 10;
+    backdrop-filter: blur(4px);
+  }
+  #overlay.show, #introOverlay.show { display: flex; }
+  #overlay h1, #introOverlay h1 { font-size: 32px; margin: 0 0 8px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+  #overlay p, #introOverlay p { font-size: 15px; margin: 6px 0; opacity: 0.9; max-width: 480px; line-height: 1.4; }
+  #stars { font-size: 42px; margin: 12px 0; letter-spacing: 8px; filter: drop-shadow(0 2px 8px rgba(255,217,122,0.4)); }
+  .factCard {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 16px;
+    padding: 16px 22px;
+    margin: 16px 0;
+    max-width: 480px;
+    box-shadow: inset 0 0 20px rgba(255,255,255,0.05);
+  }
+  .factCard .label {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: #ffd97a; font-weight: 800; margin-bottom: 6px;
+  }
+  button.gamebtn {
+    margin-top: 20px; padding: 14px 36px; font-size: 16px; font-weight: 700;
+    border: none; border-radius: 30px; cursor: pointer;
+    background: linear-gradient(135deg, #ff9233, #ff5252);
+    color: #fff; box-shadow: 0 6px 20px rgba(255,107,107,0.4);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+  button.gamebtn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(255,107,107,0.2); }
+  
+  /* Simple loading screen layout styles */
+  #loadingScreen {
+    position: absolute; inset: 0; background: #112211;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #fff; font-weight: bold; font-size: 18px; z-index: 100;
+  }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="loadingScreen">Loading Gorgeous Visual Assets...</div>
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <div class="pillRow">
+      <div class="pill">🌼 Nectar: <span id="scoreVal">0</span></div>
+      <div class="pill">🦋 Flight: <span id="launchVal">1</span>/<span id="launchMax">3</span></div>
+      <div class="pill">💨 Action: <span id="flapVal">3</span></div>
+    </div>
+    <div class="pill" id="levelPill">Level 1</div>
+  </div>
+  <div id="instructions">Drag to slingshot. Tap mid-flight to Flap Up; Hold press down to Glide safely.</div>
+
+  <div id="introOverlay">
+    <h1 id="introTitle">Level 1: First Flight</h1>
+    <div class="factCard">
+      <div class="label">Did you know?</div>
+      <p id="introFact">Monarchs can travel up to 3,000 miles between their breeding grounds in the US and Canada and their wintering forests in central Mexico.</p>
+    </div>
+    <p id="introGoal">Reach the milkweed patch to lay your eggs and continue the migration.</p>
+    <button class="gamebtn" id="introBtn">Begin Flight</button>
+  </div>
+
+  <div id="overlay">
+    <h1 id="overlayTitle">Level Complete!</h1>
+    <div id="stars">⭐⭐⭐</div>
+    <p id="overlaySub">You reached the milkweed patch safely.</p>
+    <div class="factCard">
+      <div class="label">Migration Fact</div>
+      <p id="overlayFact"></p>
+    </div>
+    <button class="gamebtn" id="overlayBtn">Next Flight</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  
+  const V_W = 900;
+  const V_H = 500;
+  let scaleX = 1, scaleY = 1;
+
+  // ---------- IMAGE ASSETS LOADER SYSTEM ----------
+  const assets = {
+    heroGlide: new Image(),
+    heroUp: new Image(),
+    heroDown: new Image(),
+    heroAttack: new Image(),
+    flower: new Image(),
+    dragonfly: new Image(),
+    milkweed: new Image(),
+    background: new Image()
+  };
+
+  // Maps your cropped GitHub files directly to game logic keys
+  assets.heroGlide.src  = 'assets/hero_glide.png';
+  assets.heroUp.src     = 'assets/hero_up.png';
+  assets.heroDown.src   = 'assets/hero_down.png';
+  assets.heroAttack.src = 'assets/hero_attack.png';
+  assets.flower.src     = 'assets/flower.png';
+  assets.dragonfly.src  = 'assets/dragonfly.png';
+  assets.milkweed.src   = 'assets/milkweed.png';
+  assets.background.src = 'assets/background.png';
+
+  let loadedCount = 0;
+  const totalAssets = Object.keys(assets).length;
+
+  Object.values(assets).forEach(img => {
+    img.onload = () => {
+      loadedCount++;
+      if (loadedCount === totalAssets) {
+        document.getElementById('loadingScreen').style.display = 'none';
+        loadLevel(0);
+        loop();
+      }
+    };
+    img.onerror = () => {
+      // Fallback message if image slicing paths don't match exactly yet
+      console.warn("Asset failed to load route. Keep splitting your sprites into your assets folder!");
+    };
+  });
+
+  const scoreValEl = document.getElementById('scoreVal');
+  const launchValEl = document.getElementById('launchVal');
+  const launchMaxEl = document.getElementById('launchMax');
+  const flapValEl = document.getElementById('flapVal');
+  const levelPillEl = document.getElementById('levelPill');
+
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+  const overlayFact = document.getElementById('overlayFact');
+  const overlayBtn = document.getElementById('overlayBtn');
+  const starsEl = document.getElementById('stars');
+
+  const introOverlay = document.getElementById('introOverlay');
+  const introTitle = document.getElementById('introTitle');
+  const introFact = document.getElementById('introFact');
+  const introGoal = document.getElementById('introGoal');
+  const introBtn = document.getElementById('introBtn');
+
+  const FACTS = [
+    "Monarchs can travel up to 3,000 miles between their breeding grounds in the US and Canada and their wintering forests in central Mexico.",
+    "No single monarch completes the whole round-trip migration. It takes four or five generations to finish the full cycle.",
+    "Milkweed is the only plant monarch caterpillars can eat — without it, there is no next generation.",
+    "Monarchs use an internal sun compass and may also sense Earth's magnetic field to hold their migration route.",
+    "On a good day with a helpful tailwind, a monarch can cover up to 100 miles.",
+    "Eastern monarchs overwinter by the millions in oyamel fir forests in central Mexico, clustering on branches to conserve warmth.",
+    "Western monarchs migrate instead to overwintering groves along the California coast.",
+    "The toxins monarchs absorb from milkweed as caterpillars stay in their bodies as adults, making them taste bad to most predators.",
+    "Monarch wings are covered in thousands of tiny overlapping scales, which is where the order name Lepidoptera comes from.",
+    "The generation that migrates south in fall can live up to 8 months, far longer than the 2-6 week lifespan of summer generations."
+  ];
+  function randomFact(){ return FACTS[Math.floor(Math.random()*FACTS.length)]; }
+
+  const LEVELS = [
+    {
+      name: "First Flight",
+      goal: "A calm day for your first launch. Find the glowing milkweed patch to the east.",
+      startX: 120, startY: 300,
+      maxLaunches: 4,
+      milkweed: { x: 680, y: 410, w: 180, h: 50 },
+      flowers: [
+        {x: 250, y: 260, r: 24, collected:false},
+        {x: 400, y: 210, r: 24, collected:false},
+        {x: 560, y: 300, r: 24, collected:false},
+      ],
+      webs: [{x: 470, y: 405, w: 60, h: 55}],
+      dragonflies: [{x: 340, y: 150, range: [300, 440], speed: 1.6, dir: 1, r: 18}],
+      wind: [{x: 150, y: 320, w: 100, h: 140, force: -0.42}],
+      groundY: 460
+    },
+    {
+      name: "Crosswinds",
+      goal: "The milkweed patch is narrower now, and a strong downdraft will test your gliding.",
+      startX: 120, startY: 300,
+      maxLaunches: 3,
+      milkweed: { x: 710, y: 410, w: 140, h: 50 },
+      flowers: [
+        {x: 240, y: 240, r: 24, collected:false},
+        {x: 370, y: 190, r: 24, collected:false},
+        {x: 500, y: 300, r: 24, collected:false},
+        {x: 630, y: 220, r: 24, collected:false},
+      ],
+      webs: [
+        {x: 320, y: 405, w: 60, h: 55},
+        {x: 600, y: 405, w: 55, h: 55}
+      ],
+      dragonflies: [
+        {x: 330, y: 150, range: [270, 420], speed: 2.2, dir: 1, r: 18},
+        {x: 560, y: 260, range: [500, 650], speed: 2.6, dir: -1, r: 18}
+      ],
+      wind: [
+        {x: 160, y: 340, w: 90, h: 140, force: -0.45},
+        {x: 460, y: 120, w: 100, h: 130, force: 0.38}
+      ],
+      groundY: 460
+    }
+  ];
+
+  let levelIndex = 0;
+  let level = null;
+
+  let butterfly, dragging, dragStart, dragCurrent, dragPath, launched;
+  let score, launchesUsed, flapsRemaining, gameOverState;
+  let flapPulse = 0;
+  let particles = [];
+  let isGliding = false;
+  let screenShake = 0;
+
+  const GRAVITY = 0.16;
+  const GLIDE_GRAVITY = 0.045;
+  const MAX_PULL = 110;
+  const LAUNCH_POWER = 0.16;
+  const FLAP_BOOST = -2.8;
+  const MAX_FLAPS = 3;
+  const MAX_CURL = 0.06;
+
+  function resize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    canvas.width = w;
+    canvas.height = h;
+    scaleX = w / V_W;
+    scaleY = h / V_H;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function loadLevel(idx){
+    level = JSON.parse(JSON.stringify(LEVELS[idx % LEVELS.length]));
+    score = 0;
+    launchesUsed = 0;
+    resetAttempt(true);
+    launchMaxEl.textContent = level.maxLaunches;
+    levelPillEl.textContent = "Lvl " + (idx+1) + ": " + level.name;
+    updateHUD();
+
+    introTitle.textContent = "Level " + (idx+1) + ": " + level.name;
+    introFact.textContent = randomFact();
+    introGoal.textContent = level.goal;
+    introOverlay.classList.add('show');
+  }
+
+  function resetAttempt(fullReset){
+    butterfly = { x: level.startX, y: level.startY, vx: 0, vy: 0, angle: 0, curl: 0, alive: true, landed: false };
+    dragging = false;
+    dragStart = null;
+    dragCurrent = null;
+    dragPath = [];
+    launched = false;
+    isGliding = false;
+    flapsRemaining = MAX_FLAPS;
+    gameOverState = null;
+    particles = [];
+    screenShake = 0;
+    if (fullReset) {
+      level.flowers.forEach(f => f.collected = false);
+    }
+    updateHUD();
+  }
+
+  function updateHUD(){
+    scoreValEl.textContent = score;
+    launchValEl.textContent = Math.min(launchesUsed + 1, level.maxLaunches);
+    flapValEl.textContent = flapsRemaining + (isGliding ? " (Gliding)" : "");
+  }
+
+  function getPos(e){
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: clientX / scaleX, y: clientY / scaleY };
+  }
+
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+  canvas.addEventListener('mousedown', onDown);
+  canvas.addEventListener('touchstart', onDown, {passive:false});
+  canvas.addEventListener('mousemove', onMove);
+  canvas.addEventListener('touchmove', onMove, {passive:false});
+  window.addEventListener('mouseup', onUp);
+  window.addEventListener('touchend', onUp);
+
+  function onDown(e){
+    e.preventDefault();
+    if (overlay.classList.contains('show') || introOverlay.classList.contains('show')) return;
+    const p = getPos(e);
+    
+    if (!launched && dist(p, butterfly) < 50) {
+      dragging = true;
+      dragStart = {x: butterfly.x, y: butterfly.y};
+      dragCurrent = p;
+      dragPath = [{x:p.x, y:p.y}];
+    } else if (launched && butterfly.alive && !butterfly.landed) {
+      isGliding = true;
+      if (flapsRemaining > 0) {
+        doFlap();
+      }
+      updateHUD();
+    }
+  }
+
+  function onMove(e){
+    if (!dragging) return;
+    e.preventDefault();
+    const p = getPos(e);
+    let dx = p.x - dragStart.x, dy = p.y - dragStart.y;
+    const d = Math.hypot(dx, dy);
+    if (d > MAX_PULL) {
+      dx = dx / d * MAX_PULL;
+      dy = dy / d * MAX_PULL;
+    }
+    dragCurrent = {x: dragStart.x + dx, y: dragStart.y + dy};
+    dragPath.push({x: dragCurrent.x, y: dragCurrent.y});
+    if (dragPath.length > 40) dragPath.shift();
+  }
+
+  function onUp(e){
+    isGliding = false;
+    updateHUD();
+    if (!dragging) return;
+    dragging = false;
+    const dx = dragStart.x - dragCurrent.x;
+    const dy = dragStart.y - dragCurrent.y;
+    butterfly.vx = dx * LAUNCH_POWER;
+    butterfly.vy = dy * LAUNCH_POWER;
+    butterfly.curl = computeCurl();
+    launched = true;
+  }
+
+  function computeCurl(){
+    if (dragPath.length < 4) return 0;
+    const a = dragPath[0];
+    const b = dragPath[dragPath.length - 1];
+    const lineLen = Math.hypot(b.x-a.x, b.y-a.y) || 1;
+    let signedAreaSum = 0;
+    for (let i=0; i<dragPath.length; i++){
+      const p = dragPath[i];
+      const cross = (b.x-a.x)*(p.y-a.y) - (b.y-a.y)*(p.x-a.x);
+      signedAreaSum += cross / lineLen;
+    }
+    let curl = (signedAreaSum / dragPath.length) * 0.004;
+    return Math.max(-MAX_CURL, Math.min(MAX_CURL, curl));
+  }
+
+  function doFlap(){
+    butterfly.vy += FLAP_BOOST;
+    butterfly.vy = Math.max(butterfly.vy, -8.5);
+    flapsRemaining--;
+    flapPulse = 14;
+    spawnParticles(butterfly.x, butterfly.y + 6, '#ffffff', 8, 1.5);
+  }
+
+  function spawnParticles(x, y, color, count, speedFactor, type='spark') {
+    for (let i=0; i<count; i++){
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * speedFactor + (type === 'explosion' ? 3 : 0.5);
+      particles.push({
+        x: x, y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - (type === 'petal' ? 1 : 0),
+        life: type === 'explosion' ? 60 + Math.random()*40 : 25 + Math.random()*15,
+        maxLife: type === 'explosion' ? 100 : 40,
+        color: color,
+        type: type
+      });
+    }
+  }
+
+  introBtn.addEventListener('click', () => introOverlay.classList.remove('show'));
+  overlayBtn.addEventListener('click', () => {
+    overlay.classList.remove('show');
+    if (gameOverState === 'win') {
+      levelIndex++;
+      loadLevel(levelIndex);
+    } else {
+      resetAttempt(false);
+    }
+  });
+
+  function insideMilkweedX(px, target) {
+    return px >= target.x && px <= (target.x + target.w);
+  }
+
+  function update(){
+    particles.forEach(p => { 
+      p.x += p.vx; 
+      p.y += p.vy; 
+      if(p.type === 'petal' || p.type === 'explosion') p.vy += 0.03; 
+      p.life--; 
+    });
+    particles = particles.filter(p => p.life > 0);
+
+    if (screenShake > 0) screenShake -= 0.1;
+    if (!launched || !butterfly.alive || butterfly.landed) return;
+
+    butterfly.vy += isGliding ? GLIDE_GRAVITY : GRAVITY;
+
+    if (Math.abs(butterfly.curl) > 0.0002) {
+      const speed = Math.hypot(butterfly.vx, butterfly.vy) || 0.001;
+      butterfly.vx += (-butterfly.vy / speed) * butterfly.curl * speed;
+      butterfly.vy += (butterfly.vx / speed) * butterfly.curl * speed;
+      butterfly.curl *= 0.985;
+    }
+
+    level.wind.forEach(w => {
+      if (butterfly.x > w.x && butterfly.x < w.x + w.w && butterfly.y > w.y && butterfly.y < w.y + w.h) {
+        butterfly.vy += w.force;
+      }
+    });
+
+    butterfly.x += butterfly.vx;
+    butterfly.y += butterfly.vy;
+    butterfly.angle = Math.atan2(butterfly.vy, butterfly.vx) * 0.4;
+
+    if (isGliding && Math.random() < 0.35) {
+      particles.push({
+        x: butterfly.x - 8, y: butterfly.y,
+        vx: -butterfly.vx * 0.2, vy: (Math.random()-0.5)*0.5,
+        life: 15, maxLife: 15, color: 'rgba(160,255,180,0.6)', type: 'spark'
+      });
+    }
+
+    level.dragonflies.forEach(d => {
+      d.x += d.speed * d.dir;
+      if (d.x < d.range[0] || d.x > d.range[1]) d.dir *= -1;
+      if (dist({x:d.x, y:d.y}, butterfly) < d.r + 14) {
+        screenShake = 4.0;
+        butterfly.vx *= 0.3;
+        butterfly.vy = -Math.abs(butterfly.vy) * 0.5 - 2.5;
+        spawnParticles(butterfly.x, butterfly.y, '#ff4444', 10, 2);
+      }
+    });
+
+    level.webs.forEach(w => {
+      if (butterfly.x > w.x && butterfly.x < w.x + w.w && butterfly.y > w.y && butterfly.y < w.y + w.h) {
+        screenShake = 6.0;
+        failAttempt('web');
+      }
+    });
+
+    level.flowers.forEach(f => {
+      if (!f.collected && dist(f, butterfly) < f.r + 18) {
+        f.collected = true;
+        score += 10;
+        updateHUD();
+        spawnParticles(f.x, f.y, '#ffd97a', 14, 2, 'petal');
+      }
+    });
+
+    if (butterfly.y >= level.groundY - 22) {
+      if (insideMilkweedX(butterfly.x, level.milkweed)) {
+        const speed = Math.hypot(butterfly.vx, butterfly.vy);
+        if (speed < 14.5) {
+          winAttempt();
+        } else {
+          failAttempt('ground');
+        }
+      } else {
+        failAttempt('ground');
+      }
+    }
+
+    if (butterfly.x < -40 || butterfly.x > V_W + 40 || butterfly.y > V_H + 60) {
+      failAttempt('lost');
+    }
+  }
+
+  function failAttempt(reason){
+    if (!butterfly.alive) return;
+    butterfly.alive = false;
+    launchesUsed++;
+    spawnParticles(butterfly.x, butterfly.y, '#ff6b6b', 12, 1.8);
+    
+    if (launchesUsed >= level.maxLaunches) {
+      gameOverState = 'lose';
+      overlayTitle.textContent = 'Migration Interrupted';
+      const msg = reason === 'web' ? 'Caught in an intricate spiderweb!' :
+                  reason === 'ground' ? 'Landed too hard or missed the target area.' :
+                  'Flew far off course into deep brush.';
+      overlaySub.textContent = msg + ' Out of flights on this route.';
+      overlayFact.textContent = randomFact();
+      starsEl.textContent = '☆☆☆';
+      setTimeout(()=> overlay.classList.add('show'), 600);
+    } else {
+      setTimeout(() => { resetAttempt(false); }, 800);
+    }
+  }
+
+  function winAttempt(){
+    butterfly.landed = true;
+    launchesUsed++;
+    gameOverState = 'win';
+    const collected = level.flowers.filter(f => f.collected).length;
+    const total = level.flowers.length;
+    
+    const colors = ['#5eff6b', '#ffb300', '#ffeb3b', '#ff3d00', '#e91e63', '#00e5ff'];
+    colors.forEach(col => {
+      spawnParticles(butterfly.x, butterfly.y - 12, col, 25, 6.0, 'explosion');
+    });
+
+    let stars = 1;
+    if (launchesUsed === 1 && collected === total) stars = 3;
+    else if (collected >= Math.ceil(total/2)) stars = 2;
+    
+    starsEl.textContent = '⭐'.repeat(stars) + '☆'.repeat(3-stars);
+    overlayTitle.textContent = 'Safe on the Milkweed!';
+    overlaySub.textContent = `Nectar collected: ${collected}/${total} — Eggs successfully laid.`;
+    overlayFact.textContent = randomFact();
+    setTimeout(()=> overlay.classList.add('show'), 1400); 
+  }
+
+  // ---------- SPRITE CANVAS RENDERING PIPELINE ----------
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    
+    ctx.save();
+    if (screenShake > 0) {
+      const dx = (Math.random() - 0.5) * screenShake * scaleX * 2.5;
+      const dy = (Math.random() - 0.5) * screenShake * scaleY * 2.5;
+      ctx.translate(dx, dy);
+    }
+    ctx.scale(scaleX, scaleY);
+
+    // DRAW ENVIRONMENT BACKGROUND IMAGE
+    if (assets.background.complete && assets.background.naturalWidth !== 0) {
+      ctx.drawImage(assets.background, 0, 0, V_W, V_H);
+    } else {
+      // Elegant vector fallback fallback while paths setup
+      const sky = ctx.createLinearGradient(0,0,0,V_H);
+      sky.addColorStop(0, '#a5dcff');
+      sky.addColorStop(0.6, '#e0f4cc');
+      sky.addColorStop(1, '#bde28d');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0,0,V_W,V_H);
+    }
+
+    // DRAW ACCENT CLOUDS IF NO BACKGROUND
+    if (!assets.background.complete) {
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      [[120,60,50],[340,45,65],[670,80,55]].forEach(([x,y,r])=>{
+        ctx.beginPath(); ctx.ellipse(x,y,r,r*0.5,0,0,Math.PI*2); ctx.fill();
+      });
+    }
+
+    level.wind.forEach(w => {
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.5;
+      const isUpward = w.force < 0;
+      for (let i=0; i<3; i++){
+        const offset = (Date.now()/10 + i*40) % w.h;
+        const yy = isUpward ? w.y + w.h - offset : w.y + offset;
+        ctx.beginPath();
+        ctx.moveTo(w.x + 10, yy);
+        ctx.bezierCurveTo(w.x + w.w/3, yy - 8, w.x + 2*w.w/3, yy + 8, w.x + w.w - 10, yy);
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+
+    level.webs.forEach(w => {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(235,245,255,0.8)';
+      ctx.lineWidth = 1.2;
+      const cx = w.x + w.w/2, cy = w.y + w.h/2;
+      for (let i=0; i<8; i++){
+        const ang = (i/8) * Math.PI * 2;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ang)*w.w/1.8, cy + Math.sin(ang)*w.h/1.8); ctx.stroke();
+      }
+      for (let r=6; r<w.w/1.8; r+=9){
+        ctx.beginPath(); ctx.ellipse(cx, cy, r, r*0.85, 0, 0, Math.PI*2); ctx.stroke();
+      }
+      ctx.restore();
+    });
+
+    // DRAW THE CARTOON FLOWER SPRITES
+    level.flowers.forEach(f => {
+      if (f.collected) return;
+      ctx.save();
+      if (assets.flower.complete && assets.flower.naturalWidth !== 0) {
+        ctx.drawImage(assets.flower, f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
+      } else {
+        ctx.font = '28px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('🌼', f.x, f.y);
+      }
+      ctx.restore();
+    });
+
+    // DRAW GLOWING CARTOON MILKWEED GOAL
+    const m = level.milkweed;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 243, 128, 0.25)';
+    ctx.strokeStyle = '#ffb300';
+    ctx.lineWidth = 3;
+    ctx.fillRect(m.x, m.y - 15, m.w, m.h);
+    ctx.strokeRect(m.x, m.y - 15, m.w, m.h);
+
+    ctx.fillStyle = '#0f330f';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText("✨ TARGET AREA ✨", m.x + m.w/2, m.y - 24);
+
+    if (assets.milkweed.complete && assets.milkweed.naturalWidth !== 0) {
+      ctx.drawImage(assets.milkweed, m.x, m.y - 10, m.w, m.h + 10);
+    } else {
+      ctx.font = '28px serif';
+      const count = Math.max(3, Math.round(m.w/32));
+      for (let i=0; i<count; i++){
+        ctx.fillText('🌾', m.x + (i+0.5)*(m.w/count), m.y + 16);
+      }
+    }
+    ctx.restore();
+
+    ctx.fillStyle = '#599e3a';
+    ctx.fillRect(0, level.groundY, V_W, V_H - level.groundY);
+    ctx.fillStyle = '#4c8730';
+    for (let i=0; i<V_W; i+=20){
+      ctx.beginPath(); ctx.moveTo(i, level.groundY); ctx.lineTo(i+5, level.groundY-10); ctx.lineTo(i+10, level.groundY); ctx.fill();
+    }
+
+    // DRAW THE ENEMY DRAGONFLIES SPRITES
+    level.dragonflies.forEach(d => {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.scale(d.dir, 1);
+      if (assets.dragonfly.complete && assets.dragonfly.naturalWidth !== 0) {
+        ctx.drawImage(assets.dragonfly, -d.r, -d.r, d.r * 2, d.r * 2);
+      } else {
+        ctx.font = '26px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('🦟', 0, 0);
+      }
+      ctx.restore();
+    });
+
+    if (dragging) {
+      ctx.save();
+      ctx.strokeStyle = '#ffb633';
+      ctx.lineWidth = 3; ctx.setLineDash([5,5]);
+      ctx.beginPath(); ctx.moveTo(dragStart.x, dragStart.y); ctx.lineTo(dragCurrent.x, dragCurrent.y); ctx.stroke();
+
+      if (dragPath.length > 2) {
+        ctx.setLineDash([]); ctx.strokeStyle = '#5effa3'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(dragPath[0].x, dragPath[0].y);
+        for (let i=1; i<dragPath.length; i++) ctx.lineTo(dragPath[i].x, dragPath[i].y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      let px = dragStart.x, py = dragStart.y;
+      let vx = (dragStart.x - dragCurrent.x) * LAUNCH_POWER;
+      let vy = (dragStart.y - dragCurrent.y) * LAUNCH_POWER;
+      let curl = computeCurl();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      for (let i=0; i<25; i++){
+        vy += GRAVITY;
+        if (Math.abs(curl) > 0.0002) {
+          const speed = Math.hypot(vx, vy) || 0.001;
+          vx += (-vy / speed) * curl * speed;
+          vy += (vx / speed) * curl * speed;
+          curl *= 0.985;
+        }
+        px += vx; py += vy;
+        if (i%2 === 0){
+          ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI*2); ctx.fill();
+        }
+      }
+    }
+
+    particles.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = p.life / p.maxLife;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      if (p.type === 'petal' || p.type === 'explosion') {
+        ctx.arc(p.x, p.y, p.type === 'explosion' ? 2.5 + Math.random()*3.5 : 3.5, 0, Math.PI*2);
+      } else {
+        ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+      }
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // ---------- SMART BUTTERFLY SPRITE ANIMATION STATE MACHINE ----------
+    ctx.save();
+    ctx.translate(butterfly.x, butterfly.y);
+    ctx.rotate(butterfly.angle);
+    
+    // Choose the right sliced image frame based on flight inputs
+    let currentButterflyImage = assets.heroGlide;
+    
+    if (dragging) {
+      currentButterflyImage = assets.heroAttack; // 4. Action/Attack mode while aiming pull
+    } else if (launched && butterfly.alive && !butterfly.landed) {
+      if (flapPulse > 6) {
+        currentButterflyImage = assets.heroUp; // 2. Wings Up frame when tapping screen
+      } else if (butterfly.vy > 1.2 && !isGliding) {
+        currentButterflyImage = assets.heroDown; // 3. Wings fully down frame while falling
+      } else {
+        currentButterflyImage = assets.heroGlide; // 1. Gliding horizontally
+      }
+    }
+
+    if (currentButterflyImage.complete && currentButterflyImage.naturalWidth !== 0) {
+      // Renders your crisp asset directly at 48x48 pixel size bounds
+      ctx.drawImage(currentButterflyImage, -24, -24, 48, 48);
+    } else {
+      // Flawless Text Emoji fallback backup if files are missing or loading
+      const ambient = Math.sin(Date.now()/55) * 0.15;
+      const pulseStrength = flapPulse > 0 ? Math.sin(flapPulse * 0.8) * 0.7 : 0;
+      const totalFlap = ambient + pulseStrength;
+      ctx.font = '32px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.save();
+      ctx.scale(1 - Math.abs(totalFlap)*0.28, 1 + totalFlap*0.38);
+      ctx.fillText('🦋', 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    if (flapPulse > 0) flapPulse -= 0.85;
+    ctx.restore();
+  }
+
+  function loop(){
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+})();
+</script>
+</body>
+</html>
