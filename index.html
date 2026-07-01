@@ -21,7 +21,6 @@
   }
   canvas {
     display: block;
-    width: 100%; height: 100%;
     cursor: crosshair;
   }
   #hud {
@@ -83,11 +82,20 @@
   }
   button.gamebtn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(255,107,107,0.2); }
   
-  /* Simple loading screen layout styles */
   #loadingScreen {
     position: absolute; inset: 0; background: #112211;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     color: #fff; font-weight: bold; font-size: 18px; z-index: 100;
+  }
+
+  /* Responsive screen turning prompt for portrait mobile viewports */
+  @media screen and (orientation: portrait) {
+    #gameContainer::after {
+      content: "Please rotate your device to landscape mode 🔄";
+      position: absolute; inset: 0; background: #112211; color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: bold; padding: 24px; text-align: center; z-index: 9999;
+    }
   }
 </style>
 </head>
@@ -163,7 +171,6 @@
     };
     img.onerror = () => {
       console.warn("Asset failed to load route. Keep splitting your sprites into your assets folder!");
-      // Increment count on error as a safeguard so the loading screen doesn't brick entirely
       loadedCount++;
       if (loadedCount === totalAssets) {
         document.getElementById('loadingScreen').style.display = 'none';
@@ -279,13 +286,33 @@
   const MAX_FLAPS = 3;
   const MAX_CURL = 0.06;
 
+  // REWRITTEN RESIZE FUNCTION: Letterboxes display safely without stretching sprites
   function resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    canvas.width = w;
-    canvas.height = h;
-    scaleX = w / V_W;
-    scaleY = h / V_H;
+    
+    const targetAspect = V_W / V_H;
+    const currentAspect = w / h;
+    
+    let canvasW, canvasH;
+    
+    if (currentAspect > targetAspect) {
+      canvasH = h;
+      canvasW = h * targetAspect;
+    } else {
+      canvasW = w;
+      canvasH = w / targetAspect;
+    }
+    
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+    
+    scaleX = canvasW / V_W;
+    scaleY = canvasH / V_H;
+
+    // Mobile specific optimization: enforces crisp rendering lines
+    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = false;
   }
   window.addEventListener('resize', resize);
   resize();
@@ -330,9 +357,13 @@
   }
 
   function getPos(e){
+    const rect = canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: clientX / scaleX, y: clientY / scaleY };
+    return { 
+      x: (clientX - rect.left) / scaleX, 
+      y: (clientY - rect.top) / scaleY 
+    };
   }
 
   function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
@@ -589,7 +620,6 @@
     if (assets.background.complete && assets.background.naturalWidth !== 0) {
       ctx.drawImage(assets.background, 0, 0, V_W, V_H);
     } else {
-      // Elegant vector fallback while paths setup
       const sky = ctx.createLinearGradient(0,0,0,V_H);
       sky.addColorStop(0, '#a5dcff');
       sky.addColorStop(0.6, '#e0f4cc');
@@ -654,14 +684,14 @@
     // DRAW GLOWING CARTOON MILKWEED GOAL
     const m = level.milkweed;
     ctx.save();
-    ctx.fillStyle = 'rgba(255, 243, 128, 0.25)';
+    ctx.fillStyle = 'rgba(255, 243, 128, 0.15)';
     ctx.strokeStyle = '#ffb300';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2;
     ctx.fillRect(m.x, m.y - 15, m.w, m.h);
     ctx.strokeRect(m.x, m.y - 15, m.w, m.h);
 
     ctx.fillStyle = '#0f330f';
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText("✨ TARGET AREA ✨", m.x + m.w/2, m.y - 24);
 
@@ -676,12 +706,7 @@
     }
     ctx.restore();
 
-    ctx.fillStyle = '#599e3a';
-    ctx.fillRect(0, level.groundY, V_W, V_H - level.groundY);
-    ctx.fillStyle = '#4c8730';
-    for (let i=0; i<V_W; i+=20){
-      ctx.beginPath(); ctx.moveTo(i, level.groundY); ctx.lineTo(i+5, level.groundY-10); ctx.lineTo(i+10, level.groundY); ctx.fill();
-    }
+    // REMOVED HARSH VECTOR OVERLAY TRANGLE DRAW LOOPS TO PRESERVE NATURAL SCENERY FLUIDITY
 
     // DRAW THE ENEMY DRAGONFLIES SPRITES
     level.dragonflies.forEach(d => {
@@ -731,7 +756,6 @@
       }
     }
 
-    // RENDERING ACCENT PARTICLES
     particles.forEach(p => {
       ctx.save();
       ctx.globalAlpha = p.life / p.maxLife;
@@ -751,26 +775,23 @@
     ctx.translate(butterfly.x, butterfly.y);
     ctx.rotate(butterfly.angle);
     
-    // Choose the right sliced image frame based on flight inputs
     let currentButterflyImage = assets.heroGlide;
     
     if (dragging) {
-      currentButterflyImage = assets.heroAttack; // 4. Action/Attack mode while aiming pull
+      currentButterflyImage = assets.heroAttack;
     } else if (launched && butterfly.alive && !butterfly.landed) {
       if (flapPulse > 6) {
-        currentButterflyImage = assets.heroUp; // 2. Wings Up frame when tapping screen
+        currentButterflyImage = assets.heroUp;
       } else if (butterfly.vy > 1.2 && !isGliding) {
-        currentButterflyImage = assets.heroDown; // 3. Wings fully down frame while falling
+        currentButterflyImage = assets.heroDown;
       } else {
-        currentButterflyImage = assets.heroGlide; // 1. Gliding horizontally
+        currentButterflyImage = assets.heroGlide;
       }
     }
 
     if (currentButterflyImage.complete && currentButterflyImage.naturalWidth !== 0) {
-      // Renders your crisp asset directly at 48x48 pixel size bounds
       ctx.drawImage(currentButterflyImage, -24, -24, 48, 48);
     } else {
-      // Flawless Text Emoji fallback backup if files are missing or loading
       const ambient = Math.sin(Date.now()/55) * 0.15;
       const pulseStrength = flapPulse > 0 ? Math.sin(flapPulse * 0.8) * 0.7 : 0;
       const totalFlap = ambient + pulseStrength;
